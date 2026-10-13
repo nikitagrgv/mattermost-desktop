@@ -234,7 +234,6 @@ describe('BaseWindow', () => {
             const baseWindow = new BaseWindow({});
 
             expect(baseWindow).toBeDefined();
-            expect(baseWindow.browserWindow.once).toHaveBeenCalledWith('restore', expect.any(Function));
             expect(baseWindow.browserWindow.on).toHaveBeenCalledWith('closed', expect.any(Function));
             expect(baseWindow.browserWindow.on).toHaveBeenCalledWith('blur', expect.any(Function));
             expect(baseWindow.browserWindow.on).toHaveBeenCalledWith('unresponsive', expect.any(Function));

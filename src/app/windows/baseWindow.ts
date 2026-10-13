@@ -78,9 +78,6 @@ export default class BaseWindow {
             this.ready = true;
         });
 
-        this.win.once('restore', () => {
-            this.win?.restore();
-        });
         this.win.on('closed', this.onClosed);
         this.win.on('blur', this.onBlur);
         this.win.on('unresponsive', this.onUnresponsive);

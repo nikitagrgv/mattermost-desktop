@@ -46,6 +46,7 @@ jest.mock('common/config', () => ({
 }));
 jest.mock('common/utils/util', () => ({
     isVersionGreaterThanOrEqualTo: jest.fn(),
+    setTestField: jest.fn(),
 }));
 
 jest.mock('fs', () => ({
@@ -115,7 +116,7 @@ describe('main/windows/mainWindow', () => {
             },
             isMaximized: jest.fn(),
             isFullScreen: jest.fn(),
-            getBounds: jest.fn(),
+            getNormalBounds: jest.fn(),
             isMinimized: jest.fn().mockReturnValue(false),
             isDestroyed: jest.fn(() => false),
         };
@@ -294,6 +295,24 @@ describe('main/windows/mainWindow', () => {
             expect(window.show).not.toHaveBeenCalled();
         });
 
+        it('should maximize the window when it is first shown if hideOnStart is set', () => {
+            const window = {
+                ...baseWindow,
+                once: jest.fn().mockImplementation((event, cb) => {
+                    if (event === 'show') {
+                        cb();
+                    }
+                }),
+            };
+            BrowserWindow.mockImplementation(() => window);
+            fs.readFileSync.mockImplementation(() => '{"x":400,"y":300,"width":1280,"height":700,"maximized":true,"fullscreen":false}');
+            Config.hideOnStart = true;
+            const mainWindow = new MainWindow();
+            mainWindow.init();
+            expect(window.show).not.toHaveBeenCalled();
+            expect(window.maximize).toHaveBeenCalled();
+        });
+
         it('should save window state on close if the app will quit', () => {
             global.willAppQuit = true;
             const window = {
@@ -309,6 +328,25 @@ describe('main/windows/mainWindow', () => {
             mainWindow.init();
             global.willAppQuit = false;
             expect(fs.writeFileSync).toHaveBeenCalled();
+        });
+
+        it('should save the normal bounds when the window is maximized', () => {
+            global.willAppQuit = true;
+            const window = {
+                ...baseWindow,
+                isMaximized: jest.fn(() => true),
+                getNormalBounds: jest.fn(() => ({x: 400, y: 300, width: 1280, height: 700})),
+                on: jest.fn().mockImplementation((event, cb) => {
+                    if (event === 'close') {
+                        cb({preventDefault: jest.fn()});
+                    }
+                }),
+            };
+            BrowserWindow.mockImplementation(() => window);
+            const mainWindow = new MainWindow();
+            mainWindow.init();
+            global.willAppQuit = false;
+            expect(JSON.parse(fs.writeFileSync.mock.lastCall[1])).toEqual({x: 400, y: 300, width: 1280, height: 700, maximized: true});
         });
 
         it('should hide window on close for Windows if app wont quit and config item is set', () => {
@@ -583,6 +621,8 @@ describe('main/windows/mainWindow', () => {
             browserWindow: {
                 visible: false,
                 isVisible: jest.fn(() => mainWindow.win.browserWindow.visible),
+                isMinimized: jest.fn(),
+                restore: jest.fn(),
                 show: jest.fn(),
                 focus: jest.fn(),
                 isDestroyed: jest.fn(() => false),
@@ -623,6 +663,26 @@ describe('main/windows/mainWindow', () => {
             mainWindow.win.isReady = true;
             mainWindow.win.browserWindow.isVisible.mockReturnValue(true);
             mainWindow.show();
+            expect(mainWindow.win.browserWindow.focus).toHaveBeenCalled();
+            Object.defineProperty(process, 'platform', {
+                value: originalPlatform,
+            });
+        });
+
+        it('should restore main window instead of showing it if it is minimized on Windows', () => {
+            const originalPlatform = process.platform;
+            Object.defineProperty(process, 'platform', {
+                value: 'win32',
+            });
+            mainWindow.win.isReady = true;
+            mainWindow.win.browserWindow.isMinimized.mockReturnValue(true);
+            mainWindow.win.browserWindow.isVisible.mockImplementation(() => mainWindow.win.browserWindow.visible);
+            mainWindow.win.browserWindow.restore.mockImplementation(() => {
+                mainWindow.win.browserWindow.visible = true;
+            });
+            mainWindow.show();
+            expect(mainWindow.win.browserWindow.restore).toHaveBeenCalled();
+            expect(mainWindow.win.browserWindow.show).not.toHaveBeenCalled();
             expect(mainWindow.win.browserWindow.focus).toHaveBeenCalled();
             Object.defineProperty(process, 'platform', {
                 value: originalPlatform,

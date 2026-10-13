@@ -108,6 +108,11 @@ export class MainWindow extends EventEmitter {
             }
         });
 
+        // With hideOnStart the window is first shown later (e.g. from the tray), so maximize it then
+        if (Config.hideOnStart && this.savedWindowState?.maximized) {
+            this.win.browserWindow.once('show', () => this.win?.browserWindow.maximize());
+        }
+
         this.win.browserWindow.on('close', this.onClose);
         this.win.browserWindow.on('focus', this.onFocus);
         this.win.browserWindow.on('blur', this.onBlur);
@@ -150,6 +155,11 @@ export class MainWindow extends EventEmitter {
             // So to make sure we always show the window on macOS/Linux (need for workspace switching)
             // We make an exception here
             if (process.platform === 'win32') {
+                // show() has the same issue for minimized windows, they come back unmaximized at their normal bounds
+                // restore() brings them back to the state they were in before being minimized
+                if (browserWindow.isMinimized()) {
+                    browserWindow.restore();
+                }
                 if (browserWindow.isVisible()) {
                     browserWindow.focus();
                 } else {
@@ -226,8 +236,9 @@ export class MainWindow extends EventEmitter {
             return;
         }
 
+        // Save the normal bounds, otherwise a window saved as maximized would unmaximize to the size of the screen
         const windowState: SavedWindowState = {
-            ...window.getBounds(),
+            ...window.getNormalBounds(),
             maximized: window.isMaximized(),
             fullscreen: window.isFullScreen(),
         };
